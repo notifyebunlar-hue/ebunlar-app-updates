@@ -1,0 +1,88 @@
+# Canlı güncelleme yayınla: ebunlar-mobile-canvas'ın main dalını derler, paketi bir release'e
+# ekler ve latest.json'u günceller. Telefonlardaki uygulama latest.json'a bakıp yeni paketi indirir.
+name: Yayınla
+
+on:
+  workflow_dispatch:
+    inputs:
+      not:
+        description: "Bu güncellemede ne değişti? (isteğe bağlı)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: yayinla
+  cancel-in-progress: false
+
+jobs:
+  yayinla:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Güncelleme reposunu al
+        uses: actions/checkout@v4
+
+      - name: Uygulama kodunu al (ebunlar-mobile-canvas, main)
+        uses: actions/checkout@v4
+        with:
+          repository: notifyebunlar-hue/ebunlar-mobile-canvas
+          ref: main
+          ssh-key: ${{ secrets.APP_REPO_DEPLOY_KEY }}
+          path: app
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.2
+
+      - name: Paketleri kur
+        working-directory: app
+        run: bun install --frozen-lockfile
+
+      - name: Testler
+        working-directory: app
+        run: bun run test
+
+      - name: Mobil paketi derle
+        working-directory: app
+        run: |
+          export BUNDLE_TIME="$(date +%s%3N)"
+          echo "BUNDLE_TIME=$BUNDLE_TIME" >> "$GITHUB_ENV"
+          bun run build:mobile
+          test -f dist/client/index.html
+
+      - name: Paketle ve yayınla
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTE: ${{ inputs.not }}
+        run: |
+          VERSION="1.0.${{ github.run_number }}"
+          (cd app/dist/client && zip -qr "$GITHUB_WORKSPACE/bundle.zip" .)
+          CHECKSUM="$(sha256sum bundle.zip | cut -d' ' -f1)"
+          MIN_NATIVE="$(jq -r '.minNativeBuild // 1' app/ota.config.json)"
+          COMMIT="$(git -C app rev-parse --short HEAD)"
+
+          gh release create "v$VERSION" bundle.zip \
+            --title "v$VERSION" \
+            --notes "${NOTE:-Canlı güncelleme} (kod: $COMMIT)"
+
+          URL="https://github.com/${{ github.repository }}/releases/download/v$VERSION/bundle.zip"
+          jq -n --arg v "$VERSION" --arg url "$URL" --arg sum "$CHECKSUM" \
+            --argjson t "$BUNDLE_TIME" --argjson min "$MIN_NATIVE" --arg commit "$COMMIT" \
+            '{version: $v, url: $url, checksum: $sum, builtAt: $t, minNativeBuild: $min, commit: $commit}' \
+            > latest.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add latest.json
+          git commit -m "Yayınla v$VERSION ($COMMIT)"
+          git push
+
+          echo "### v$VERSION yayında 🎉" >> "$GITHUB_STEP_SUMMARY"
+          echo "Kod: \`$COMMIT\` · Telefonlar bir sonraki açılışta güncellenir." >> "$GITHUB_STEP_SUMMARY"
