@@ -1,8 +1,8 @@
 {
-  "version": "1.0.12",
-  "url": "https://github.com/notifyebunlar-hue/ebunlar-app-updates/releases/download/v1.0.12/bundle.zip",
-  "checksum": "67e835c2766d136b699d8cd62ac0433f7ebce609a3e2d51c991391f13b676fd0",
-  "builtAt": 1795185726481,
+  "version": "1.0.13",
+  "url": "https://github.com/notifyebunlar-hue/ebunlar-app-updates/releases/download/v1.0.13/bundle.zip",
+  "checksum": "3417464e2aaf609752ba8f18baa24e52fc78ca845f173993ee26a28e08e640e2",
+  "builtAt": 1795186437979,
   "minNativeBuild": 1,
-  "commit": "520ae9a"
+  "commit": "04973bf"
 }
